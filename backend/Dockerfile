@@ -1,19 +1,34 @@
-# Use an official OpenJDK runtime as a parent image
-# We choose one that is slim and based on Java 17
-FROM openjdk:17-jdk-slim
+# --- Stage 1: Build the application ---
+# Use a Maven image that includes JDK 17 to build the project
+FROM maven:3.8.5-openjdk-17 AS builder
 
-# Set the working directory inside the container
+# Set the working directory
 WORKDIR /app
 
-# Copy the packaged jar file from our local 'target' folder into the container
-# The jar file contains our compiled application and all its dependencies
-COPY target/crispurl-0.0.1-SNAPSHOT.jar app.jar
+# Copy the Maven project file first to leverage Docker layer caching
+COPY pom.xml .
 
-# Expose the port the app runs on. Render will use this.
-# This should match the port exposed in application.properties
+# Copy the rest of the application source code
+COPY src ./src
+
+# Build the project and create the executable JAR file
+# This runs 'mvn clean package' and skips running tests during the build
+RUN mvn clean package -DskipTests
+
+
+# --- Stage 2: Create the final, lightweight image ---
+# Use a slim Java 17 runtime image
+FROM openjdk:17-jdk-slim
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the JAR file that was created in the 'builder' stage
+COPY --from=builder /app/target/crispurl-0.0.1-SNAPSHOT.jar app.jar
+
+# Expose the port the application will run on
 EXPOSE 8081
 
-# The command to run when the container starts
-# This executes our Java application
+# The command to run the application when the container starts
 ENTRYPOINT ["java", "-jar", "app.jar"]
 
