@@ -1,6 +1,6 @@
 # --- Stage 1: Build the application ---
-# Use a Maven image that includes JDK 17 to build the project
-FROM maven:3.8.5-openjdk-17 AS builder
+# Use a Maven image that includes JDK 21 to build the project
+FROM maven:3.8.5-openjdk-21 AS builder
 
 # Set the working directory
 WORKDIR /app
@@ -17,8 +17,8 @@ RUN mvn clean package -DskipTests
 
 
 # --- Stage 2: Create the final, lightweight image ---
-# Use a slim Java 17 runtime image
-FROM openjdk:17-jdk-slim
+# Use a slim Java 21 runtime image
+FROM openjdk:21-jdk-slim
 
 # Set the working directory
 WORKDIR /app
