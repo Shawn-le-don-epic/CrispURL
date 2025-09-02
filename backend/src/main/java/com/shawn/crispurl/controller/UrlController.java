@@ -3,45 +3,62 @@ package com.shawn.crispurl.controller;
 import com.shawn.crispurl.dto.ShortenRequest;
 import com.shawn.crispurl.dto.ShortenResponse;
 import com.shawn.crispurl.model.UrlMapping;
+import com.shawn.crispurl.repository.UrlMappingRepository;
 import com.shawn.crispurl.service.UrlShorteningService;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import java.io.IOException;
+import java.net.URI;
+import java.util.Optional;
 
 @RestController
-@CrossOrigin(origins = "*") // Allows requests from any origin (e.g., our React frontend)
 public class UrlController {
 
-    @Autowired
-    private UrlShorteningService urlShorteningService;
+    private final UrlShorteningService urlShorteningService;
+    private final UrlMappingRepository urlMappingRepository;
 
-    // Endpoint for creating a short URL
+    public UrlController(UrlShorteningService urlShorteningService, UrlMappingRepository urlMappingRepository) {
+        this.urlMappingRepository = urlMappingRepository;
+        this.urlShorteningService = urlShorteningService;
+    }
+
     @PostMapping("/api/shorten")
     public ResponseEntity<ShortenResponse> shortenUrl(@RequestBody ShortenRequest request) {
-        UrlMapping urlMapping = urlShorteningService.shortenUrl(request.getLongUrl());
-        // We'll assume a base URL for our service. This would be your domain in production.
-        String shortUrl = "http://localhost:8081/" + urlMapping.getShortCode();
+        String longUrl = request.getLongUrl();
+        if (longUrl == null || longUrl.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        // 1. Call the public method from the service to get a unique code
+        String shortCode = urlShorteningService.generateUniqueShortCode();
+
+        // 2. Create the entity and save it using the repository
+        UrlMapping urlMapping = new UrlMapping(longUrl, shortCode);
+        urlMappingRepository.save(urlMapping);
+
+        // 3. Build the response URL correctly
+        String shortUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/{shortCode}")
+                .buildAndExpand(shortCode)
+                .toUriString();
+
         return ResponseEntity.ok(new ShortenResponse(shortUrl));
     }
 
-    // Endpoint for redirecting from a short URL to the original URL
     @GetMapping("/{shortCode}")
-    public void redirectToLongUrl(@PathVariable String shortCode, HttpServletResponse response) throws IOException {
-        urlShorteningService.getLongUrl(shortCode).ifPresentOrElse(
-            urlMapping -> {
-                try {
-                    response.sendRedirect(urlMapping.getLongUrl());
-                } catch (IOException e) {
-                    // Handle exception
-                }
-            },
-            () -> {
-                response.setStatus(HttpStatus.NOT_FOUND.value());
-            }
-        );
+    public ResponseEntity<Void> redirectToOriginalUrl(@PathVariable String shortCode) {
+        // Use the repository's "magic" method to find the long URL
+        Optional<UrlMapping> urlMapping = urlMappingRepository.findByShortCode(shortCode);
+
+        if (urlMapping.isPresent()) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(URI.create(urlMapping.get().getLongUrl()))
+                    .build();
+        } else {
+            return ResponseEntity.notFound().build();
+        }
     }
 }
+

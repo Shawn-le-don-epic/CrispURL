@@ -1,42 +1,38 @@
 package com.shawn.crispurl.service;
 
-import com.shawn.crispurl.model.UrlMapping;
 import com.shawn.crispurl.repository.UrlMappingRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
 import java.util.Base64;
-import java.util.Optional;
 
-@Service // Marks this as a Spring service component
+@Service
 public class UrlShorteningService {
 
-    @Autowired // Spring will automatically inject an instance of our repository
-    private UrlMappingRepository urlMappingRepository;
-
+    private final UrlMappingRepository urlMappingRepository;
     private static final SecureRandom random = new SecureRandom();
     private static final Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
 
-    public UrlMapping shortenUrl(String longUrl) {
+    // Use constructor injection - this is a best practice
+    public UrlShorteningService(UrlMappingRepository urlMappingRepository) {
+        this.urlMappingRepository = urlMappingRepository;
+    }
+
+    /**
+     * Generates a random 6-character string that is guaranteed to be unique
+     * in the database.
+     * @return A unique short code.
+     */
+    public String generateUniqueShortCode() {
         String shortCode;
-        // Keep generating a new short code until we find one that isn't already in the database
+        // Keep generating a new code until we find one that isn't already used
         do {
-            shortCode = generateShortCode();
-        } while (urlMappingRepository.findById(shortCode).isPresent());
-
-        UrlMapping urlMapping = new UrlMapping(shortCode, longUrl);
-        return urlMappingRepository.save(urlMapping);
-    }
-
-    public Optional<UrlMapping> getLongUrl(String shortCode) {
-        return urlMappingRepository.findById(shortCode);
-    }
-
-    private String generateShortCode() {
-        // Generates a random, URL-safe 6-character string
-        byte[] buffer = new byte[4]; // 4 bytes will produce ~5.3 characters, we'll trim
-        random.nextBytes(buffer);
-        return encoder.encodeToString(buffer).substring(0, 6);
+            byte[] buffer = new byte[4];
+            random.nextBytes(buffer);
+            shortCode = encoder.encodeToString(buffer).substring(0, 6);
+        } while (urlMappingRepository.findByShortCode(shortCode).isPresent());
+        
+        return shortCode;
     }
 }
+

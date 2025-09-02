@@ -4,8 +4,14 @@ import com.shawn.crispurl.model.UrlMapping;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-@Repository // Marks this as a Spring Data repository
+import java.util.Optional;
+
+@Repository
 public interface UrlMappingRepository extends JpaRepository<UrlMapping, String> {
-    // Spring Data JPA will automatically provide methods like save(), findById(), delete(), etc.
-    // We don't need to write anything else here!
+
+    // Spring Data JPA automatically implements this method for us
+    // based on its name. It will execute a query like:
+    // "SELECT * FROM url_mapping WHERE short_code = ?"
+    Optional<UrlMapping> findByShortCode(String shortCode);
 }
+
